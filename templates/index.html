@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>InNovaIdeia · Hub IA</title>
+  <link rel="stylesheet" href="./static/css/styles.css" />
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="2" width="20" height="20" rx="5" fill="white" opacity="0.08"/>
+            <path d="M6 12h12" stroke="white" stroke-width="1.6" stroke-linecap="round" opacity="0.9"/>
+          </svg>
+        </div>
+        <div>
+          <h1>Hub IA</h1>
+          <p class="subtitle">Central InNovaIdeia de Modelos</p>
+        </div>
+      </div>
+
+      <div class="search-box">
+        <input id="q" type="text" placeholder="Buscar modelos..." />
+      </div>
+
+      <div class="model-list" id="modelList">
+        <p style="color:#94a3b8;text-align:center;margin-top:10px;">Carregando modelos...</p>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <section class="chat-section">
+        <div class="chat-header">
+          <h2 id="modelName">Selecione um modelo</h2>
+          <span id="modelCtx"></span>
+        </div>
+
+        <div class="chat-history" id="chatHistory">
+          <div class="placeholder">Converse com o modelo selecionado 👇</div>
+        </div>
+
+        <div class="chat-input">
+          <input id="userInput" type="text" placeholder="Digite sua mensagem..." />
+          <button id="sendBtn" disabled>Enviar</button>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <p>Desenvolvido por Dione Castro Alves | © <span id="year"></span> InNovaIdeia</p>
+        <p><a href="https://innovaideia-github-io.vercel.app" target="_blank">Visite meu portfólio</a></p>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    const q = document.getElementById('q');
+    const list = document.getElementById('modelList');
+    const chatHistory = document.getElementById('chatHistory');
+    const sendBtn = document.getElementById('sendBtn');
+    const input = document.getElementById('userInput');
+    let models = [], selected = null;
+
+    async function loadModels() {
+      const res = await fetch('/api/models');
+      models = await res.json();
+      renderList();
+    }
+
+    function renderList(filter='') {
+      list.innerHTML = '';
+      const f = filter.trim().toLowerCase();
+      models.filter(m => (m.name + ' ' + m.category).toLowerCase().includes(f))
+        .forEach(m => {
+          const card = document.createElement('div');
+          card.className = 'model-card';
+          card.innerHTML = `
+            <strong>${m.name}</strong><br>
+            <small>${m.category} • ${m.ctx}</small>
+          `;
+          card.onclick = () => selectModel(m, card);
+          list.appendChild(card);
+        });
+      if (list.innerHTML === '') list.innerHTML = '<p style=\"color:#94a3b8;text-align:center\">Nenhum modelo encontrado</p>';
+    }
+
+    function selectModel(m, el) {
+      selected = m;
+      document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('modelName').textContent = m.name;
+      document.getElementById('modelCtx').textContent = m.ctx;
+      sendBtn.disabled = false;
+      chatHistory.innerHTML = `<div class='msg system'>Conectado ao modelo <strong>${m.id}</strong>.</div>`;
+    }
+
+    sendBtn.addEventListener('click', async () => {
+      if (!selected) return alert('Selecione um modelo primeiro');
+      const text = input.value.trim();
+      if (!text) return;
+      appendMessage('user', text);
+      input.value = '';
+      sendBtn.disabled = true;
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: selected.id,
+          messages: [
+            { role: 'system', content: 'Você é um assistente técnico da InNovaIdeia.' },
+            { role: 'user', content: text }
+          ]
+        })
+      });
+      const data = await res.json();
+      appendMessage('assistant', data.response);
+      sendBtn.disabled = false;
+    });
+
+    function appendMessage(role, text) {
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      div.innerHTML = `<p>${text}</p>`;
+      chatHistory.appendChild(div);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    q.addEventListener('input', () => renderList(q.value));
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    loadModels();
+  </script>
+</body>
+</html>
